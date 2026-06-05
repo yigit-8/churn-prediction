@@ -84,7 +84,6 @@ def train(n_samples: int, max_depth: int, n_estimators: int) -> None:
         model = XGBClassifier(
             max_depth=max_depth,
             n_estimators=n_estimators,
-            use_label_encoder=False,
             eval_metric="logloss",
             random_state=42,
         )

@@ -47,7 +47,14 @@ def test_predict_returns_valid_response():
     data = response.json()
     assert "churn" in data
     assert "probability" in data
+    assert "threshold" in data
     assert 0.0 <= data["probability"] <= 1.0
+
+
+def test_predict_with_custom_threshold():
+    response = client.post("/predict?threshold=0.3", json=HIGH_RISK_CUSTOMER)
+    assert response.status_code == 200
+    assert response.json()["threshold"] == 0.3
 
 
 def test_high_risk_customer_churns():
@@ -60,6 +67,30 @@ def test_low_risk_customer_stays():
     response = client.post("/predict", json=LOW_RISK_CUSTOMER)
     assert response.status_code == 200
     assert response.json()["churn"] is False
+
+
+def test_batch_predict():
+    response = client.post("/predict/batch", json=[HIGH_RISK_CUSTOMER, LOW_RISK_CUSTOMER])
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 2
+    assert "churn_count" in data
+    assert len(data["results"]) == 2
+
+
+def test_batch_predict_empty_list_returns_400():
+    response = client.post("/predict/batch", json=[])
+    assert response.status_code == 400
+
+
+def test_feature_importance():
+    response = client.get("/feature-importance")
+    assert response.status_code == 200
+    data = response.json()
+    assert "feature_importance" in data
+    features = [f["feature"] for f in data["feature_importance"]]
+    assert "tenure" in features
+    assert "monthly_charges" in features
 
 
 def test_logs_returns_list():

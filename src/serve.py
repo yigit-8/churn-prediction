@@ -11,7 +11,7 @@ from typing import Literal
 
 import joblib
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "model.joblib")
@@ -70,6 +70,13 @@ def log_prediction(features: dict, churn: int, probability: float):
         conn.close()
 
 
+def prepare_features(customer_dict: dict) -> pd.DataFrame:
+    le = model_bundle["label_encoder"]
+    df = pd.DataFrame([customer_dict])
+    df["contract_type"] = le.transform(df["contract_type"])
+    return df
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -96,6 +103,13 @@ class CustomerFeatures(BaseModel):
 class PredictionResponse(BaseModel):
     churn: bool
     probability: float
+    threshold: float
+
+
+class BatchPredictionResponse(BaseModel):
+    results: list[PredictionResponse]
+    total: int
+    churn_count: int
 
 
 @app.get("/")
@@ -111,21 +125,58 @@ def health():
 
 
 @app.post("/predict", response_model=PredictionResponse)
-def predict(customer: CustomerFeatures):
+def predict(
+    customer: CustomerFeatures,
+    threshold: float = Query(default=0.5, ge=0.0, le=1.0, description="Churn probability threshold"),
+):
+    if model_bundle is None:
+        raise HTTPException(status_code=503, detail="Model not loaded.")
+
+    df = prepare_features(customer.model_dump())
+    probability = float(model_bundle["model"].predict_proba(df)[0][1])
+    churn = probability >= threshold
+
+    log_prediction(customer.model_dump(), int(churn), probability)
+    return PredictionResponse(churn=churn, probability=round(probability, 4), threshold=threshold)
+
+
+@app.post("/predict/batch", response_model=BatchPredictionResponse)
+def predict_batch(
+    customers: list[CustomerFeatures],
+    threshold: float = Query(default=0.5, ge=0.0, le=1.0),
+):
+    if model_bundle is None:
+        raise HTTPException(status_code=503, detail="Model not loaded.")
+    if not customers:
+        raise HTTPException(status_code=400, detail="Customer list cannot be empty.")
+
+    results = []
+    for customer in customers:
+        df = prepare_features(customer.model_dump())
+        probability = float(model_bundle["model"].predict_proba(df)[0][1])
+        churn = probability >= threshold
+        log_prediction(customer.model_dump(), int(churn), probability)
+        results.append(PredictionResponse(churn=churn, probability=round(probability, 4), threshold=threshold))
+
+    churn_count = sum(1 for r in results if r.churn)
+    return BatchPredictionResponse(results=results, total=len(results), churn_count=churn_count)
+
+
+@app.get("/feature-importance")
+def feature_importance():
     if model_bundle is None:
         raise HTTPException(status_code=503, detail="Model not loaded.")
 
     model = model_bundle["model"]
-    le = model_bundle["label_encoder"]
+    feature_names = ["tenure", "monthly_charges", "num_products", "has_internet", "contract_type"]
+    importances = model.feature_importances_.tolist()
 
-    df = pd.DataFrame([customer.model_dump()])
-    df["contract_type"] = le.transform(df["contract_type"])
-
-    probability = float(model.predict_proba(df)[0][1])
-    churn = probability >= 0.5
-
-    log_prediction(customer.model_dump(), int(churn), probability)
-    return PredictionResponse(churn=churn, probability=round(probability, 4))
+    ranked = sorted(
+        [{"feature": f, "importance": round(i, 4)} for f, i in zip(feature_names, importances)],
+        key=lambda x: x["importance"],
+        reverse=True,
+    )
+    return {"feature_importance": ranked}
 
 
 @app.get("/logs")
