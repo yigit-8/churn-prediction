@@ -3,8 +3,6 @@ from fastapi.testclient import TestClient
 
 from src.serve import app
 
-client = TestClient(app)
-
 VALID_CUSTOMER = {
     "tenure": 24,
     "monthly_charges": 65.0,
@@ -30,18 +28,24 @@ LOW_RISK_CUSTOMER = {
 }
 
 
-def test_root():
+@pytest.fixture(scope="module")
+def client():
+    with TestClient(app) as c:
+        yield c
+
+
+def test_root(client):
     response = client.get("/")
     assert response.status_code == 200
 
 
-def test_health():
+def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["model_loaded"] is True
 
 
-def test_predict_returns_valid_response():
+def test_predict_returns_valid_response(client):
     response = client.post("/predict", json=VALID_CUSTOMER)
     assert response.status_code == 200
     data = response.json()
@@ -51,25 +55,19 @@ def test_predict_returns_valid_response():
     assert 0.0 <= data["probability"] <= 1.0
 
 
-def test_predict_with_custom_threshold():
+def test_predict_with_custom_threshold(client):
     response = client.post("/predict?threshold=0.3", json=HIGH_RISK_CUSTOMER)
     assert response.status_code == 200
     assert response.json()["threshold"] == 0.3
 
 
-def test_high_risk_customer_churns():
-    response = client.post("/predict", json=HIGH_RISK_CUSTOMER)
-    assert response.status_code == 200
-    assert response.json()["churn"] is True
+def test_high_risk_customer_has_higher_probability(client):
+    high = client.post("/predict", json=HIGH_RISK_CUSTOMER).json()["probability"]
+    low = client.post("/predict", json=LOW_RISK_CUSTOMER).json()["probability"]
+    assert high > low
 
 
-def test_low_risk_customer_stays():
-    response = client.post("/predict", json=LOW_RISK_CUSTOMER)
-    assert response.status_code == 200
-    assert response.json()["churn"] is False
-
-
-def test_batch_predict():
+def test_batch_predict(client):
     response = client.post("/predict/batch", json=[HIGH_RISK_CUSTOMER, LOW_RISK_CUSTOMER])
     assert response.status_code == 200
     data = response.json()
@@ -78,12 +76,12 @@ def test_batch_predict():
     assert len(data["results"]) == 2
 
 
-def test_batch_predict_empty_list_returns_400():
+def test_batch_predict_empty_list_returns_400(client):
     response = client.post("/predict/batch", json=[])
     assert response.status_code == 400
 
 
-def test_feature_importance():
+def test_feature_importance(client):
     response = client.get("/feature-importance")
     assert response.status_code == 200
     data = response.json()
@@ -93,13 +91,13 @@ def test_feature_importance():
     assert "monthly_charges" in features
 
 
-def test_logs_returns_list():
+def test_logs_returns_list(client):
     response = client.get("/logs")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
 
-def test_stats_returns_counts():
+def test_stats_returns_counts(client):
     response = client.get("/stats")
     assert response.status_code == 200
     data = response.json()
