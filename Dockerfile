@@ -6,7 +6,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
-COPY data/ ./data/
+
+# Train the model at build time so the image is self-contained
+RUN python src/train.py
 
 EXPOSE 8000
 
