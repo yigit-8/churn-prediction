@@ -8,6 +8,19 @@ Predicts customer churn using XGBoost, with full MLOps tooling: experiment track
 
 A customer's account features go in, and the model outputs whether that customer is likely to churn along with a probability score. Every prediction is stored and monitored for drift over time.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    T[train.py] -- model.joblib --> S[serve.py FastAPI]
+    T -- params and metrics --> M[MLflow]
+    T -- reference.csv --> D[drift.py]
+    C[Client] -- POST /predict --> S
+    S -- every prediction --> DB[(SQLite)]
+    DB -- recent inputs --> D
+    D -- Evidently report --> R[drift_report.html]
+```
+
 ## Tech Stack
 
 | Layer | Technology |

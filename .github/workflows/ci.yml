@@ -30,6 +30,9 @@ jobs:
   docker-build:
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -42,3 +45,19 @@ jobs:
           sleep 15
           curl --fail http://localhost:8000/health
           docker stop smoke
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image to GHCR
+        if: github.event_name == 'push'
+        run: |
+          docker tag mlops-churn-prediction:${{ github.sha }} ghcr.io/yigit-8/churn-prediction:latest
+          docker tag mlops-churn-prediction:${{ github.sha }} ghcr.io/yigit-8/churn-prediction:${{ github.sha }}
+          docker push ghcr.io/yigit-8/churn-prediction:latest
+          docker push ghcr.io/yigit-8/churn-prediction:${{ github.sha }}
