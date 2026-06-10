@@ -1,3 +1,13 @@
+---
+title: Churn Prediction API
+emoji: "\U0001F4C9"
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 8000
+pinned: false
+---
+
 # MLOps Churn Prediction
 
 ![CI](https://github.com/yigit-8/churn-prediction/actions/workflows/ci.yml/badge.svg)
