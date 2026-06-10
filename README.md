@@ -12,6 +12,8 @@ pinned: false
 
 ![CI](https://github.com/yigit-8/churn-prediction/actions/workflows/ci.yml/badge.svg)
 
+**Live demo:** [API on Hugging Face Spaces](https://yliman-churn-prediction.hf.space/docs)
+
 Predicts customer churn using XGBoost, with full MLOps tooling: experiment tracking via MLflow, data drift detection via Evidently, and automated CI/CD via GitHub Actions.
 
 ## How it works
