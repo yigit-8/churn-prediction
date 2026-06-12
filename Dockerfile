@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 
 # Train the model at build time so the image is self-contained
-RUN python src/train.py
+RUN python -m src.train
 
 # Run as non-root (required by HF Spaces, good practice in general)
 RUN useradd -m -u 1000 appuser && chown -R appuser /app

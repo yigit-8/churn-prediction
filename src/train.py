@@ -5,31 +5,29 @@ Generates synthetic customer data, trains an XGBoost classifier,
 and logs everything to MLflow.
 
 Usage:
-    python src/train.py
-    python src/train.py --n-samples 2000 --max-depth 5
+    python -m src.train
+    python -m src.train --n-samples 2000 --max-depth 5
 """
 
 import argparse
-import json
-import os
 
 import joblib
 import mlflow
 import numpy as np
 import pandas as pd
+from loguru import logger
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "model.joblib")
-REFERENCE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "reference.csv")
+from src.config import settings
 
 
 def generate_data(n_samples: int, seed: int = 42) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
 
-    contract = rng.choice(["month-to-month", "one_year", "two_year"], size=n_samples, p=[0.55, 0.25, 0.20])
+    contract = rng.choice(settings.CONTRACT_TYPES, size=n_samples, p=[0.55, 0.25, 0.20])
     tenure = rng.integers(1, 72, size=n_samples)
     monthly_charges = rng.uniform(20, 120, size=n_samples).round(2)
     num_products = rng.integers(1, 6, size=n_samples)
@@ -64,7 +62,7 @@ def preprocess(df: pd.DataFrame) -> tuple[pd.DataFrame, LabelEncoder]:
 
 
 def train(n_samples: int, max_depth: int, n_estimators: int) -> None:
-    mlflow.set_experiment("churn-prediction")
+    mlflow.set_experiment(settings.EXPERIMENT_NAME)
 
     with mlflow.start_run():
         mlflow.log_params({
@@ -73,20 +71,24 @@ def train(n_samples: int, max_depth: int, n_estimators: int) -> None:
             "n_estimators": n_estimators,
         })
 
-        df = generate_data(n_samples)
+        logger.info(f"Generating {n_samples} samples...")
+        df = generate_data(n_samples, seed=settings.RANDOM_STATE)
         df, le = preprocess(df)
 
-        X = df.drop(columns=["churn"])
-        y = df["churn"]
+        X = df.drop(columns=[settings.TARGET])
+        y = df[settings.TARGET]
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=settings.TEST_SIZE, random_state=settings.RANDOM_STATE
+        )
 
         model = XGBClassifier(
             max_depth=max_depth,
             n_estimators=n_estimators,
             eval_metric="logloss",
-            random_state=42,
+            random_state=settings.RANDOM_STATE,
         )
+        logger.info("Training model...")
         model.fit(X_train, y_train)
 
         y_pred = model.predict(X_test)
@@ -98,13 +100,13 @@ def train(n_samples: int, max_depth: int, n_estimators: int) -> None:
             "roc_auc": roc_auc_score(y_test, y_proba),
         }
         mlflow.log_metrics(metrics)
-        print(f"Metrics: {metrics}")
+        logger.info(f"Metrics: {metrics}")
 
-        os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-        joblib.dump({"model": model, "label_encoder": le}, MODEL_PATH)
-        df.drop(columns=["churn"]).head(200).to_csv(REFERENCE_PATH, index=False)
+        settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        joblib.dump({"model": model, "label_encoder": le}, settings.MODEL_PATH)
+        df.drop(columns=[settings.TARGET]).head(200).to_csv(settings.REFERENCE_PATH, index=False)
 
-        print(f"Model saved to {MODEL_PATH}")
+        logger.success(f"Model saved to {settings.MODEL_PATH}")
 
 
 if __name__ == "__main__":

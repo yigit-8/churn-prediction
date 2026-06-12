@@ -4,7 +4,6 @@ Churn prediction API.
 Loads the model saved by train.py and exposes prediction endpoints.
 """
 
-import os
 import sqlite3
 from contextlib import asynccontextmanager
 from typing import Literal
@@ -12,25 +11,26 @@ from typing import Literal
 import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
+from loguru import logger
 from pydantic import BaseModel, Field
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "model.joblib")
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "predictions.db")
+from src.config import settings
 
 model_bundle = None
 
 
 def load_model():
     global model_bundle
-    if not os.path.exists(MODEL_PATH):
-        raise RuntimeError("Model not found. Run src/train.py first.")
-    model_bundle = joblib.load(MODEL_PATH)
-    print("Model loaded.")
+    if not settings.MODEL_PATH.exists():
+        logger.error(f"Model not found at {settings.MODEL_PATH}")
+        raise RuntimeError("Model not found. Run python -m src.train first.")
+    model_bundle = joblib.load(settings.MODEL_PATH)
+    logger.info("Model loaded successfully.")
 
 
 def init_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(settings.DB_PATH)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS predictions (
             id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,14 +46,16 @@ def init_db():
     """)
     conn.commit()
     conn.close()
+    logger.info(f"Database initialized at {settings.DB_PATH}")
 
 
 def log_prediction(features: dict, churn: int, probability: float):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(settings.DB_PATH)
     try:
         conn.execute(
             """INSERT INTO predictions
-               (tenure, monthly_charges, num_products, has_internet, contract_type, churn, probability)
+               (tenure, monthly_charges, num_products, has_internet,
+                contract_type, churn, probability)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
                 features["tenure"],
@@ -85,9 +87,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Churn Prediction API",
+    title=settings.APP_TITLE,
     description="Predicts whether a customer will churn based on account features.",
-    version="1.0.0",
+    version=settings.APP_VERSION,
     lifespan=lifespan,
 )
 
@@ -127,7 +129,9 @@ def health():
 @app.post("/predict", response_model=PredictionResponse)
 def predict(
     customer: CustomerFeatures,
-    threshold: float = Query(default=0.5, ge=0.0, le=1.0, description="Churn probability threshold"),
+    threshold: float = Query(
+        default=0.5, ge=0.0, le=1.0, description="Churn probability threshold"
+    ),
 ):
     if model_bundle is None:
         raise HTTPException(status_code=503, detail="Model not loaded.")
@@ -156,7 +160,9 @@ def predict_batch(
         probability = float(model_bundle["model"].predict_proba(df)[0][1])
         churn = probability >= threshold
         log_prediction(customer.model_dump(), int(churn), probability)
-        results.append(PredictionResponse(churn=churn, probability=round(probability, 4), threshold=threshold))
+        results.append(
+            PredictionResponse(churn=churn, probability=round(probability, 4), threshold=threshold)
+        )
 
     churn_count = sum(1 for r in results if r.churn)
     return BatchPredictionResponse(results=results, total=len(results), churn_count=churn_count)
@@ -181,7 +187,7 @@ def feature_importance():
 
 @app.get("/logs")
 def get_logs(limit: int = 20):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(settings.DB_PATH)
     rows = conn.execute(
         """SELECT tenure, monthly_charges, num_products, has_internet,
                   contract_type, churn, probability, timestamp
@@ -196,7 +202,7 @@ def get_logs(limit: int = 20):
 
 @app.get("/stats")
 def get_stats():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(settings.DB_PATH)
     total = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
     churned = conn.execute("SELECT COUNT(*) FROM predictions WHERE churn = 1").fetchone()[0]
     conn.close()

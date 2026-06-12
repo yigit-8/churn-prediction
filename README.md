@@ -57,7 +57,7 @@ pip install -r requirements.txt
 **Train the model**
 
 ```bash
-python src/train.py
+python -m src.train
 mlflow ui
 ```
 
@@ -72,7 +72,7 @@ uvicorn src.serve:app --reload
 **Check for data drift**
 
 ```bash
-python src/drift.py
+python -m src.drift
 ```
 
 **Run with Docker Compose**
