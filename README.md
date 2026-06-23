@@ -123,3 +123,7 @@ pytest tests/ -v
 ## CI/CD
 
 Every push to `main` runs the test suite and then builds and smoke-tests the Docker image automatically.
+
+## License
+
+Released under the MIT License. See [LICENSE](LICENSE).

@@ -2,7 +2,6 @@
 name = "churn-prediction"
 version = "0.1.0"
 description = "Production-grade customer churn prediction pipeline"
-authors = [{ name = "Yigit Liman", email = "ygtlmn96@gmail.com" }]
 dependencies = [
     "fastapi>=0.111.0",
     "uvicorn>=0.30.1",
