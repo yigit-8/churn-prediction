@@ -147,6 +147,15 @@ kubectl port-forward -n churn-prediction svc/churn-api 8000:80
 
 The `HPA` needs a metrics pipeline (e.g. `metrics-server`) to actually scale, which most managed clusters (EKS, GKE, AKS) provide by default; a plain `kind` cluster does not, so `kubectl get hpa` shows `<unknown>` for the CPU target locally.
 
+## Deploying to Render
+
+`render.yaml` defines the service as a Blueprint: Docker runtime, `/health` as the health check path, free plan. To deploy:
+
+1. Sign in to [Render](https://render.com) with GitHub (no card required for the free plan).
+2. **New** → **Blueprint**, select this repository. Render reads `render.yaml` and provisions the service automatically.
+
+Render sets a `PORT` environment variable and expects the container to bind to it; the Dockerfile's `CMD` reads `${PORT:-8000}` so it works unmodified on Render, on Hugging Face Spaces, and locally.
+
 ## Running Tests
 
 ```bash

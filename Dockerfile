@@ -16,4 +16,6 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "src.serve:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form so ${PORT} expands: most PaaS hosts (e.g. Render) inject PORT and
+# expect the container to bind to it; falls back to 8000 for HF Spaces/local.
+CMD uvicorn src.serve:app --host 0.0.0.0 --port ${PORT:-8000}
