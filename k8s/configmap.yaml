@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: churn-api-config
+  namespace: churn-prediction
+data:
+  # Serve the model bundled in the image rather than loading from the MLflow
+  # registry, so the deployment has no dependency on a reachable MLflow server.
+  USE_REGISTRY: "false"

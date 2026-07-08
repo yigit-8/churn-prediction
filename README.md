@@ -46,6 +46,7 @@ flowchart LR
 | Service Monitoring | Prometheus + Grafana |
 | API | FastAPI + Uvicorn |
 | Containerization | Docker + Docker Compose |
+| Orchestration | Kubernetes |
 | CI/CD | GitHub Actions |
 | Testing | Pytest |
 
@@ -131,6 +132,20 @@ curl -X POST http://localhost:8000/predict \
 ```json
 {"churn": true, "probability": 0.8731}
 ```
+
+## Kubernetes
+
+`k8s/` has manifests for running the API on a cluster: a namespace, a `ConfigMap` for non-secret settings, a `Deployment` (2 replicas, resource requests/limits, liveness/readiness probes on `/health`, non-root security context), a `ClusterIP` `Service`, and an `HPA` (2-5 replicas on 70% CPU). They pull the public image from GHCR, so no registry credentials are needed.
+
+Verified end-to-end on a local [kind](https://kind.sigs.k8s.io/) cluster: both replicas reached `Ready`, and `/health` and `/predict` responded correctly through the `Service`.
+
+```bash
+kubectl apply -f k8s/
+kubectl get pods -n churn-prediction
+kubectl port-forward -n churn-prediction svc/churn-api 8000:80
+```
+
+The `HPA` needs a metrics pipeline (e.g. `metrics-server`) to actually scale, which most managed clusters (EKS, GKE, AKS) provide by default; a plain `kind` cluster does not, so `kubectl get hpa` shows `<unknown>` for the CPU target locally.
 
 ## Running Tests
 
