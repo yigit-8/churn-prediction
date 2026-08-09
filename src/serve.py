@@ -171,16 +171,32 @@ def model_info():
     return info
 
 
+def resolve_threshold(requested: float | None) -> float:
+    """Caller's threshold, or the one training chose on held-out data.
+
+    Defaulting to 0.5 would be the wrong operating point here: churn is the
+    minority class, so at 0.5 the model scores F1 0.13 against 0.49 at the
+    threshold train.py selects. Older model files predate the field.
+    """
+    if requested is not None:
+        return requested
+    return float((model_bundle or {}).get("threshold", 0.5))
+
+
 @app.post("/predict", response_model=PredictionResponse)
 def predict(
     customer: CustomerFeatures,
-    threshold: float = Query(
-        default=0.5, ge=0.0, le=1.0, description="Churn probability threshold"
+    threshold: float | None = Query(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Churn probability threshold. Defaults to the value chosen at training time.",
     ),
 ):
     if model_bundle is None:
         raise HTTPException(status_code=503, detail="Model not loaded.")
 
+    threshold = resolve_threshold(threshold)
     df = prepare_features(customer.model_dump())
     probability = float(model_bundle["model"].predict_proba(df)[0][1])
     churn = probability >= threshold
@@ -193,13 +209,14 @@ def predict(
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
 def predict_batch(
     customers: list[CustomerFeatures],
-    threshold: float = Query(default=0.5, ge=0.0, le=1.0),
+    threshold: float | None = Query(default=None, ge=0.0, le=1.0),
 ):
     if model_bundle is None:
         raise HTTPException(status_code=503, detail="Model not loaded.")
     if not customers:
         raise HTTPException(status_code=400, detail="Customer list cannot be empty.")
 
+    threshold = resolve_threshold(threshold)
     results = []
     for customer in customers:
         df = prepare_features(customer.model_dump())

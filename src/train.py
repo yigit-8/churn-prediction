@@ -54,6 +54,23 @@ def generate_data(n_samples: int, seed: int = 42) -> pd.DataFrame:
     })
 
 
+def choose_threshold(y_true, y_proba) -> float:
+    """Pick the decision threshold that maximises F1 on held-out data.
+
+    Churn is the minority class and the generator rarely produces a churn
+    probability above 0.5, so a well-calibrated model asked to threshold at 0.5
+    almost never predicts churn: on this data that scores F1 around 0.13 while
+    ROC-AUC says the ranking is fine. The threshold, not the model, is what has
+    to move — and it belongs with the model rather than in the caller's head.
+    """
+    best_threshold, best_f1 = 0.5, -1.0
+    for candidate in np.arange(0.05, 0.95, 0.01):
+        f1 = f1_score(y_true, (y_proba >= candidate).astype(int), zero_division=0)
+        if f1 > best_f1:
+            best_threshold, best_f1 = float(candidate), f1
+    return round(best_threshold, 2)
+
+
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["contract_type"] = df["contract_type"].map(settings.CONTRACT_MAP).astype(int)
@@ -81,6 +98,12 @@ def train(n_samples: int, max_depth: int, n_estimators: int) -> None:
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=settings.TEST_SIZE, random_state=settings.RANDOM_STATE
         )
+        # A third split, held out from fitting, is what the decision threshold is
+        # chosen on. Choosing it on the test set would report a score the model
+        # cannot reproduce on unseen customers.
+        X_fit, X_val, y_fit, y_val = train_test_split(
+            X_train, y_train, test_size=0.25, random_state=settings.RANDOM_STATE
+        )
 
         model = XGBClassifier(
             max_depth=max_depth,
@@ -89,15 +112,24 @@ def train(n_samples: int, max_depth: int, n_estimators: int) -> None:
             random_state=settings.RANDOM_STATE,
         )
         logger.info("Training model...")
+        model.fit(X_fit, y_fit)
+
+        threshold = choose_threshold(y_val, model.predict_proba(X_val)[:, 1])
+        logger.info(f"Chosen decision threshold: {threshold:.2f}")
+
+        # Refit on everything now that the threshold is fixed, so the shipped
+        # model has seen the validation customers too.
         model.fit(X_train, y_train)
 
-        y_pred = model.predict(X_test)
         y_proba = model.predict_proba(X_test)[:, 1]
+        y_pred = (y_proba >= threshold).astype(int)
 
         metrics = {
             "accuracy": accuracy_score(y_test, y_pred),
             "f1": f1_score(y_test, y_pred),
             "roc_auc": roc_auc_score(y_test, y_proba),
+            "threshold": threshold,
+            "f1_at_half": f1_score(y_test, (y_proba >= 0.5).astype(int)),
         }
         mlflow.log_metrics(metrics)
         logger.info(f"Metrics: {metrics}")
@@ -116,7 +148,7 @@ def train(n_samples: int, max_depth: int, n_estimators: int) -> None:
         logger.success(f"Registered a new version of '{settings.REGISTERED_MODEL_NAME}'.")
 
         settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
-        joblib.dump({"model": model}, settings.MODEL_PATH)
+        joblib.dump({"model": model, "threshold": threshold}, settings.MODEL_PATH)
         df.drop(columns=[settings.TARGET]).head(200).to_csv(settings.REFERENCE_PATH, index=False)
 
         logger.success(f"Model saved to {settings.MODEL_PATH}")
