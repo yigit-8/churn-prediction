@@ -20,6 +20,24 @@ Predicts customer churn using XGBoost, with full MLOps tooling: experiment track
 
 A customer's account features go in, and the model outputs whether that customer is likely to churn along with a probability score. Every prediction is stored and monitored for drift over time.
 
+## Results
+
+One seeded run of `python -m src.train` on the default settings — 1,000 generated customers, 200 held out, XGBoost at `max_depth=4`, `n_estimators=100`:
+
+| Metric | Value |
+|---|---|
+| ROC-AUC | 0.700 |
+| F1 | 0.486 |
+| Accuracy | 0.640 |
+| Decision threshold | 0.12 |
+| F1 at the default 0.5 cutoff | 0.130 |
+
+**The threshold is the result here.** Only 23% of these customers churn and the generator rarely pushes a churn probability past 0.5, so a well-calibrated model asked to decide at 0.5 almost never says "churn" — F1 collapses to 0.130 while ROC-AUC keeps insisting the ranking is fine. `choose_threshold()` picks the cutoff that maximises F1 on a third split held out from fitting, lands on 0.12, and lifts F1 to 0.486 — the same model, read at the right operating point. That threshold is saved next to the model in `model.joblib` rather than left for the caller to rediscover.
+
+Accuracy drops to 0.640 as a direct consequence, below the 0.765 you would get by always answering "no churn". That is the intended trade: catching churners costs false positives, and on a retention problem a wasted discount is cheaper than a lost customer.
+
+The data is synthetic and deliberately noisy, so a ROC-AUC of 0.700 is the ceiling the generator allows, not a benchmark against real customer data.
+
 ## Architecture
 
 ```mermaid
