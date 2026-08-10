@@ -63,7 +63,7 @@ jobs:
       - name: Push image to GHCR
         if: github.event_name == 'push'
         run: |
-          docker tag mlops-churn-prediction:${{ github.sha }} ghcr.io/yigit-8/churn-prediction:latest
-          docker tag mlops-churn-prediction:${{ github.sha }} ghcr.io/yigit-8/churn-prediction:${{ github.sha }}
-          docker push ghcr.io/yigit-8/churn-prediction:latest
-          docker push ghcr.io/yigit-8/churn-prediction:${{ github.sha }}
+          docker tag mlops-churn-prediction:${{ github.sha }} ghcr.io/yigitliman/churn-prediction:latest
+          docker tag mlops-churn-prediction:${{ github.sha }} ghcr.io/yigitliman/churn-prediction:${{ github.sha }}
+          docker push ghcr.io/yigitliman/churn-prediction:latest
+          docker push ghcr.io/yigitliman/churn-prediction:${{ github.sha }}

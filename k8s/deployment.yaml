@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: churn-api
-          image: ghcr.io/yigit-8/churn-prediction:latest
+          image: ghcr.io/yigitliman/churn-prediction:latest
           ports:
             - containerPort: 8000
           envFrom:

@@ -10,7 +10,7 @@ pinned: false
 
 # MLOps Churn Prediction
 
-![CI](https://github.com/yigit-8/churn-prediction/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/yigitliman/churn-prediction/actions/workflows/ci.yml/badge.svg)
 
 **Run it yourself:** `docker compose up --build` starts the API, MLflow, Prometheus and Grafana together — see [Quick Start](#quick-start).
 
