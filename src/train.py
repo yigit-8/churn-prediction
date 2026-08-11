@@ -61,7 +61,7 @@ def choose_threshold(y_true, y_proba) -> float:
     probability above 0.5, so a well-calibrated model asked to threshold at 0.5
     almost never predicts churn: on this data that scores F1 around 0.13 while
     ROC-AUC says the ranking is fine. The threshold, not the model, is what has
-    to move — and it belongs with the model rather than in the caller's head.
+    to move, and it belongs with the model rather than in the caller's head.
     """
     best_threshold, best_f1 = 0.5, -1.0
     for candidate in np.arange(0.05, 0.95, 0.01):
