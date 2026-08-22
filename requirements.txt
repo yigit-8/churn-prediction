@@ -13,3 +13,4 @@ loguru==0.7.2
 prometheus-client==0.20.0
 pytest==8.2.2
 pytest-asyncio==0.23.7
+pytest-cov==5.0.0

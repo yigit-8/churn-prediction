@@ -167,7 +167,9 @@ def model_info():
             key=lambda x: x["version"],
         )
     except Exception as exc:
-        info["versions"] = f"registry unavailable: {exc}"
+        # The reason belongs in the server log, not in a response the caller sees.
+        logger.warning(f"Registry lookup failed: {exc}")
+        info["versions"] = "unavailable"
     return info
 
 
@@ -250,7 +252,7 @@ def feature_importance():
 
 
 @app.get("/logs")
-def get_logs(limit: int = 20):
+def get_logs(limit: int = Query(default=20, ge=1, le=500)):
     conn = sqlite3.connect(settings.DB_PATH)
     rows = conn.execute(
         """SELECT tenure, monthly_charges, num_products, has_internet,
