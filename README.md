@@ -14,7 +14,7 @@ pinned: false
 
 **Run it yourself:** `docker compose up --build` starts the API, MLflow, Prometheus and Grafana together. See [Quick Start](#quick-start).
 
-Predicts customer churn using XGBoost, with full MLOps tooling: experiment tracking via MLflow, data drift detection via Evidently, and automated CI/CD via GitHub Actions.
+An XGBoost churn classifier with the serving stack around it: an MLflow registry where a new version is promoted by moving the `production` alias, Evidently drift checks, Prometheus metrics, and Kubernetes manifests with probes and an HPA. The other repos in this series reuse this pipeline on different problems; this is the one where every piece is built out.
 
 ## How it works
 
